@@ -743,7 +743,14 @@ def _clear_segment_watermark(db_path: str, segment_id: str) -> None:
 
     Only the row is deleted — the BLOB format chromadb writes into
     ``max_seq_id`` is left untouched (see ``_fix_blob_seq_ids``).
+
+    If ``db_path`` does not exist (quarantine_invalid_hnsw_metadata can run on
+    a palace before Chroma has created ``chroma.sqlite3``), this is a no-op:
+    there is no watermark to clear, and opening the writer would create an
+    empty database file Chroma has not asked for.
     """
+    if not os.path.isfile(db_path):
+        return
     try:
         with contextlib.closing(open_palace_writer(db_path)) as conn:
             conn.execute(
@@ -2022,6 +2029,7 @@ def quarantine_invalid_hnsw_metadata(palace_path: str) -> list[str]:
     out of the way before ``PersistentClient`` opens so Chroma can rebuild
     cleanly instead of touching known-bad metadata.
     """
+    db_path = os.path.join(palace_path, "chroma.sqlite3")
     try:
         entries = os.listdir(palace_path)
     except OSError:
